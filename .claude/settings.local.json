@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(python -c \"open\\('D:/All claude skills/Fresh start/AI_trading_Bot_system/core/agents/researchers/__init__.py'\\).read\\(\\)\")",
+      "Bash(wc -l \"d:/All claude skills/Fresh start/AI_trading_Bot_system/core/mcp_tools/\"*.py)",
+      "Bash(cat \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\supabase\\\\migrations\"/*.sql)",
+      "Bash(find \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\" -type f -exec wc -c {} +)",
+      "Bash(sort -k2)",
+      "Bash(sed -n '61,85p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\monitoring\\\\guard_watchdog.py\")",
+      "Bash(sed -n '77,90p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\monitoring\\\\telegram_bot.py\")",
+      "Bash(sed -n '85,95p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\monitoring\\\\report_generator.py\")",
+      "Bash(sed -n '74,100p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\monitoring\\\\guard_watchdog.py\")",
+      "Bash(sed -n '60,80p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\monitoring\\\\report_generator.py\")",
+      "Bash(sed -n '86,105p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\risk\\\\drawdown_monitor.py\")",
+      "Bash(sed -n '101,115p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\risk\\\\pre_trade_checks.py\")",
+      "Bash(sed -n '102,112p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\risk\\\\position_manager.py\")",
+      "Bash(sed -n '67,80p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\execution\\\\paper_trader.py\")",
+      "Bash(sed -n '82,100p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\agents\\\\master_orchestrator.py\")",
+      "Bash(sed -n '104,120p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\agents\\\\portfolio_manager.py\")",
+      "Bash(sed -n '63,80p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\agents\\\\researchers\\\\bull_researcher.py\")",
+      "Bash(sed -n '78,92p' \"D:\\\\All claude skills\\\\Fresh start\\\\AI_trading_Bot_system\\\\core\\\\agents\\\\debate\\\\debate_arena.py\")"
+    ]
+  }
+}

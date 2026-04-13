@@ -1,0 +1,38 @@
+name = "nexus-ii-bot"
+main = "main.py"
+compatibility_date = "2026-04-01"
+
+[vars]
+TRADING_MODE = "PAPER_TRADE"
+SUPABASE_URL = "https://your-project.supabase.co"
+LOG_LEVEL = "INFO"
+
+# Cron triggers (replaces APScheduler)
+[triggers]
+crons = [
+    "0 8 * * 1-5",        # 08:00 IST — pre-market data pull
+    "30 8 * * 1-5",       # 08:30 IST — macro analysis
+    "45 8 * * 1-5",       # 08:45 IST — factor scores (Qlib)
+    "0 9 * * 1-5",        # 09:00 IST — morning brief
+    "*/15 9-15 * * 1-5",  # Every 15 min during market hours
+    "10 15 * * 1-5",      # 15:10 IST — intraday squareoff
+    "0 16 * * 1-5",       # 16:00 IST — daily P&L summary
+    "0 22 * * 0",         # Sunday 22:00 — model retrain
+]
+
+# KV namespace (cache — replaces Redis)
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"
+
+# R2 bucket (historical data storage)
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "nexus-data"
+
+# Secrets (set via: wrangler secret put SECRET_NAME)
+# DHAN_ACCESS_TOKEN
+# CLAUDE_API_KEY
+# TELEGRAM_BOT_TOKEN
+# SUPABASE_ANON_KEY
+# SUPABASE_SERVICE_ROLE_KEY
