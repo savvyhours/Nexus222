@@ -49,3 +49,8 @@ logs/
 # Secrets
 secrets/
 credentials/
+
+# MCP config (contains API tokens — never commit)
+.mcp.json
+
+.vercel
