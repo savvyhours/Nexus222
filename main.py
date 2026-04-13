@@ -100,6 +100,8 @@ async def _build_components() -> dict:
         starting_capital=STARTING_CAPITAL,
         alpha_vantage_key=os.getenv("ALPHA_VANTAGE_KEY", ""),
         nse_session_cookie=os.getenv("NSE_SESSION_COOKIE", ""),
+        fred_api_key=os.getenv("FRED_API_KEY", ""),
+        finnhub_api_key=os.getenv("FINNHUB_API_KEY", ""),
     )
     log.info("  ✓ Layer 0c MCPTools (DhanTools + DataTools + ComputeTools)")
 

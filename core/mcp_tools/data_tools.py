@@ -7,8 +7,10 @@ Async fetchers for data that does NOT come from DhanHQ directly:
   - Advance/Decline  (NSE breadth data)
   - Sector momentum  (NSE sector index prices via DhanHQ)
   - Screener.in      (fundamental data for stocks)
-  - News headlines   (Google Finance RSS / MoneyControl RSS)
-  - Macro data       (USD/INR, Brent crude via AlphaVantage / OpenBB)
+  - News headlines   (Yahoo Finance RSS + Finnhub)
+  - Macro data       (USD/INR, Brent crude via AlphaVantage)
+  - FRED macro       (Fed Funds Rate, CPI, US 10Y yield, DXY via FRED API)
+  - Finnhub data     (company news, earnings calendar, economic calendar)
   - RBI calendar     (static + scrape fallback)
 
 All methods degrade gracefully — they return safe defaults and log errors
@@ -48,6 +50,8 @@ _NSE_HEADERS = {
     "Referer": "https://www.nseindia.com",
 }
 _ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
+_FRED_BASE          = "https://api.stlouisfed.org/fred/series/observations"
+_FINNHUB_BASE       = "https://finnhub.io/api/v1"
 
 # ── HTTP client factory ────────────────────────────────────────────────────────
 
@@ -61,18 +65,26 @@ class DataTools:
 
     Parameters
     ----------
-    alpha_vantage_key : API key for AlphaVantage (macro data: FOREX, commodities)
-    nse_session_cookie: optional — NSE requires a session cookie for some APIs.
+    alpha_vantage_key : API key for AlphaVantage (FOREX, commodities)
+    nse_session_cookie: optional — NSE session cookie for advanced endpoints.
                         If not provided, VIX is fetched via public allIndices endpoint.
+    fred_api_key      : FRED API key (fred.stlouisfed.org) for US macro data:
+                        Fed Funds Rate, CPI, US 10Y Treasury yield, DXY.
+    finnhub_api_key   : Finnhub API key (finnhub.io) for real-time company news,
+                        earnings calendar, economic calendar, and market sentiment.
     """
 
     def __init__(
         self,
         alpha_vantage_key: str = "",
         nse_session_cookie: str = "",
+        fred_api_key: str = "",
+        finnhub_api_key: str = "",
     ) -> None:
-        self._av_key = alpha_vantage_key
-        self._nse_cookie = nse_session_cookie
+        self._av_key       = alpha_vantage_key
+        self._nse_cookie   = nse_session_cookie
+        self._fred_key     = fred_api_key
+        self._finnhub_key  = finnhub_api_key
 
     # ── India VIX ─────────────────────────────────────────────────────────────
 
@@ -409,6 +421,295 @@ class DataTools:
             events.append(f"Union Budget: {budget_date.strftime('%d %b %Y')}")
 
         return events
+
+    # ── FRED macro data (US Federal Reserve Economic Data) ───────────────────
+
+    async def _fred_latest(self, series_id: str, default: float) -> float:
+        """
+        Fetch the latest observation for a FRED series.
+
+        Parameters
+        ----------
+        series_id : FRED series identifier (e.g. "FEDFUNDS", "CPIAUCSL")
+        default   : value returned when key is missing or request fails
+
+        Returns
+        -------
+        float — most recent observation value
+        """
+        if not self._fred_key:
+            log.debug("DataTools: no FRED key — %s skipped", series_id)
+            return default
+        try:
+            params = {
+                "series_id":     series_id,
+                "api_key":       self._fred_key,
+                "file_type":     "json",
+                "sort_order":    "desc",
+                "limit":         "1",
+            }
+            async with _make_client(timeout=10.0) as client:
+                r = await client.get(_FRED_BASE, params=params)
+                r.raise_for_status()
+                obs = r.json().get("observations", [])
+                if obs:
+                    val = obs[0].get("value", ".")
+                    if val != ".":
+                        return float(val)
+        except Exception as exc:
+            log.error("DataTools: FRED %s failed: %s", series_id, exc)
+        return default
+
+    async def get_fed_funds_rate(self) -> float:
+        """
+        Current US Federal Funds Rate (%) from FRED series FEDFUNDS.
+
+        Relevant for Indian markets: Fed rate changes drive DXY and FII flows.
+        Returns 5.25 (approximate neutral) on failure.
+        """
+        return await self._fred_latest("FEDFUNDS", default=5.25)
+
+    async def get_us_cpi_yoy(self) -> float:
+        """
+        US CPI year-over-year inflation rate (%) from FRED series CPIAUCSL.
+
+        High US inflation → Fed stays hawkish → stronger USD → FII outflows from India.
+        Returns 3.0 (approximate neutral) on failure.
+        """
+        # FRED gives monthly CPI index; compute YoY from last 13 observations
+        if not self._fred_key:
+            log.debug("DataTools: no FRED key — US CPI skipped")
+            return 3.0
+        try:
+            params = {
+                "series_id":  "CPIAUCSL",
+                "api_key":    self._fred_key,
+                "file_type":  "json",
+                "sort_order": "desc",
+                "limit":      "13",
+            }
+            async with _make_client(timeout=10.0) as client:
+                r = await client.get(_FRED_BASE, params=params)
+                r.raise_for_status()
+                obs = r.json().get("observations", [])
+                valid = [o for o in obs if o.get("value", ".") != "."]
+                if len(valid) >= 13:
+                    latest = float(valid[0]["value"])
+                    year_ago = float(valid[12]["value"])
+                    return round((latest - year_ago) / year_ago * 100, 2)
+        except Exception as exc:
+            log.error("DataTools: get_us_cpi_yoy failed: %s", exc)
+        return 3.0
+
+    async def get_us_10y_yield(self) -> float:
+        """
+        US 10-Year Treasury yield (%) from FRED series DGS10.
+
+        Rising US yields attract capital away from EMs including India.
+        Returns 4.5 (approximate neutral) on failure.
+        """
+        return await self._fred_latest("DGS10", default=4.5)
+
+    async def get_dxy(self) -> float:
+        """
+        US Dollar Index (DXY) from FRED series DTWEXBGS (trade-weighted USD).
+
+        Stronger DXY → weaker INR → inflationary pressure + FII outflows.
+        Returns 104.0 (approximate neutral) on failure.
+        """
+        return await self._fred_latest("DTWEXBGS", default=104.0)
+
+    async def get_us_macro_snapshot(self) -> dict:
+        """
+        Fetch all US macro indicators in a single concurrent call.
+
+        Returns
+        -------
+        dict with keys:
+            fed_funds_rate : float — current Fed Funds Rate (%)
+            us_cpi_yoy     : float — US CPI year-over-year inflation (%)
+            us_10y_yield   : float — US 10-Year Treasury yield (%)
+            dxy            : float — US Dollar Index (trade-weighted)
+        """
+        fed, cpi, yield_10y, dxy = await asyncio.gather(
+            self.get_fed_funds_rate(),
+            self.get_us_cpi_yoy(),
+            self.get_us_10y_yield(),
+            self.get_dxy(),
+        )
+        return {
+            "fed_funds_rate": fed,
+            "us_cpi_yoy":     cpi,
+            "us_10y_yield":   yield_10y,
+            "dxy":            dxy,
+        }
+
+    # ── Finnhub data ──────────────────────────────────────────────────────────
+
+    async def get_company_news_finnhub(
+        self, symbol: str, count: int = 20
+    ) -> list[str]:
+        """
+        Fetch recent company news headlines from Finnhub.
+
+        Finnhub provides higher-quality, better-curated news than Yahoo RSS.
+        Falls back silently to empty list when Finnhub key is absent.
+
+        Parameters
+        ----------
+        symbol : NSE symbol (e.g. "RELIANCE"). Finnhub uses US tickers by default;
+                 for Indian stocks this tries the symbol directly as Finnhub
+                 supports BSE/NSE symbols via their exchange mapping.
+        count  : maximum number of headlines to return
+
+        Returns
+        -------
+        list of headline strings
+        """
+        if not self._finnhub_key:
+            log.debug("DataTools: no Finnhub key — company news skipped for %s", symbol)
+            return []
+        try:
+            from datetime import date, timedelta
+            today = date.today()
+            from_date = (today - timedelta(days=7)).isoformat()
+            to_date   = today.isoformat()
+
+            params = {
+                "symbol": symbol,
+                "from":   from_date,
+                "to":     to_date,
+                "token":  self._finnhub_key,
+            }
+            async with _make_client(timeout=10.0) as client:
+                r = await client.get(f"{_FINNHUB_BASE}/company-news", params=params)
+                r.raise_for_status()
+                news = r.json()
+
+            return [
+                item.get("headline", "").strip()
+                for item in news
+                if item.get("headline")
+            ][:count]
+
+        except Exception as exc:
+            log.debug("DataTools: get_company_news_finnhub(%s) failed: %s", symbol, exc)
+            return []
+
+    async def get_earnings_calendar(self, symbol: str) -> list[dict]:
+        """
+        Fetch upcoming earnings dates for a symbol from Finnhub.
+
+        Returns a list of dicts with keys: date, epsEstimate, revenueEstimate.
+        Returns empty list on failure or missing key.
+        """
+        if not self._finnhub_key:
+            return []
+        try:
+            from datetime import date, timedelta
+            today = date.today()
+            params = {
+                "symbol": symbol,
+                "from":   today.isoformat(),
+                "to":     (today + timedelta(days=90)).isoformat(),
+                "token":  self._finnhub_key,
+            }
+            async with _make_client(timeout=10.0) as client:
+                r = await client.get(f"{_FINNHUB_BASE}/calendar/earnings", params=params)
+                r.raise_for_status()
+                earnings = r.json().get("earningsCalendar", [])
+
+            return [
+                {
+                    "date":            e.get("date", ""),
+                    "eps_estimate":    e.get("epsEstimate"),
+                    "revenue_estimate": e.get("revenueEstimate"),
+                }
+                for e in earnings
+                if e.get("symbol") == symbol
+            ]
+
+        except Exception as exc:
+            log.debug("DataTools: get_earnings_calendar(%s) failed: %s", symbol, exc)
+            return []
+
+    async def get_economic_calendar(self) -> list[dict]:
+        """
+        Fetch upcoming global economic events from Finnhub.
+
+        Events include US CPI, Fed meetings, NFP, ECB decisions —
+        all macro events that drive FII flows into/out of India.
+
+        Returns a list of dicts with keys: time, event, country, impact, estimate.
+        Returns empty list on failure.
+        """
+        if not self._finnhub_key:
+            return []
+        try:
+            params = {"token": self._finnhub_key}
+            async with _make_client(timeout=10.0) as client:
+                r = await client.get(f"{_FINNHUB_BASE}/calendar/economic", params=params)
+                r.raise_for_status()
+                events = r.json().get("economicCalendar", [])
+
+            return [
+                {
+                    "time":     e.get("time", ""),
+                    "event":    e.get("event", ""),
+                    "country":  e.get("country", ""),
+                    "impact":   e.get("impact", ""),
+                    "estimate": e.get("estimate"),
+                    "actual":   e.get("actual"),
+                }
+                for e in events
+                # Focus on high-impact US + IN events
+                if e.get("country") in ("US", "IN", "EU")
+                and e.get("impact") in ("high", "medium")
+            ]
+
+        except Exception as exc:
+            log.debug("DataTools: get_economic_calendar failed: %s", exc)
+            return []
+
+    async def get_market_sentiment_finnhub(self) -> dict:
+        """
+        Fetch bullish/bearish sentiment percentages from Finnhub social sentiment
+        for NIFTY (represented via the India ETF "INDA" as a proxy).
+
+        Returns dict with keys: bullish_pct, bearish_pct (floats 0–1).
+        Falls back to neutral 0.5/0.5 on failure.
+        """
+        if not self._finnhub_key:
+            return {"bullish_pct": 0.5, "bearish_pct": 0.5}
+        try:
+            params = {
+                "symbol": "INDA",   # iShares MSCI India ETF — best liquid proxy
+                "token":  self._finnhub_key,
+            }
+            async with _make_client(timeout=10.0) as client:
+                r = await client.get(f"{_FINNHUB_BASE}/stock/social-sentiment", params=params)
+                r.raise_for_status()
+                data = r.json()
+
+            reddit  = data.get("reddit", [])
+            twitter = data.get("twitter", [])
+            combined = reddit + twitter
+
+            if not combined:
+                return {"bullish_pct": 0.5, "bearish_pct": 0.5}
+
+            bullish = sum(1 for s in combined if s.get("score", 0) > 0)
+            total   = len(combined)
+            bullish_pct = round(bullish / total, 3) if total > 0 else 0.5
+
+            return {
+                "bullish_pct": bullish_pct,
+                "bearish_pct": round(1.0 - bullish_pct, 3),
+            }
+
+        except Exception as exc:
+            log.debug("DataTools: get_market_sentiment_finnhub failed: %s", exc)
+            return {"bullish_pct": 0.5, "bearish_pct": 0.5}
 
     # ── Average IV percentile ─────────────────────────────────────────────────
 

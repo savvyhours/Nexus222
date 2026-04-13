@@ -297,6 +297,46 @@ class MCPTools:
     async def get_brent_crude(self) -> float:
         return await self.data.get_brent_crude()
 
+    # ── FRED macro data pass-throughs ─────────────────────────────────────────
+
+    async def get_fed_funds_rate(self) -> float:
+        """US Federal Funds Rate (%). FRED FEDFUNDS series."""
+        return await self.data.get_fed_funds_rate()
+
+    async def get_us_cpi_yoy(self) -> float:
+        """US CPI year-over-year inflation (%). FRED CPIAUCSL series."""
+        return await self.data.get_us_cpi_yoy()
+
+    async def get_us_10y_yield(self) -> float:
+        """US 10-Year Treasury yield (%). FRED DGS10 series."""
+        return await self.data.get_us_10y_yield()
+
+    async def get_dxy(self) -> float:
+        """US Dollar Index (trade-weighted). FRED DTWEXBGS series."""
+        return await self.data.get_dxy()
+
+    async def get_us_macro_snapshot(self) -> dict:
+        """All US macro indicators in one concurrent fetch (Fed rate, CPI, 10Y, DXY)."""
+        return await self.data.get_us_macro_snapshot()
+
+    # ── Finnhub data pass-throughs ────────────────────────────────────────────
+
+    async def get_company_news_finnhub(self, symbol: str, count: int = 20) -> list[str]:
+        """Company news headlines from Finnhub (higher quality than Yahoo RSS)."""
+        return await self.data.get_company_news_finnhub(symbol, count)
+
+    async def get_earnings_calendar(self, symbol: str) -> list[dict]:
+        """Upcoming earnings dates and estimates for a symbol (Finnhub)."""
+        return await self.data.get_earnings_calendar(symbol)
+
+    async def get_economic_calendar(self) -> list[dict]:
+        """Global high-impact economic events from Finnhub (US/IN/EU, medium+high)."""
+        return await self.data.get_economic_calendar()
+
+    async def get_market_sentiment_finnhub(self) -> dict:
+        """India market sentiment proxy (bullish/bearish %) via Finnhub INDA ETF."""
+        return await self.data.get_market_sentiment_finnhub()
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Factory function
@@ -307,6 +347,8 @@ def create_mcp_tools(
     starting_capital: float,
     alpha_vantage_key: str = "",
     nse_session_cookie: str = "",
+    fred_api_key: str = "",
+    finnhub_api_key: str = "",
 ) -> MCPTools:
     """
     Factory: construct and wire together all MCP tool instances.
@@ -319,7 +361,9 @@ def create_mcp_tools(
     dhan_client       : initialised dhanhq.DhanHQ instance
     starting_capital  : trading capital in ₹ (e.g. 500_000)
     alpha_vantage_key : AlphaVantage API key for FOREX / commodity data
-    nse_session_cookie: optional NSE cookie for advanced endpoints
+    nse_session_cookie: optional NSE cookie for advanced breadth endpoints
+    fred_api_key      : FRED API key — US macro (Fed rate, CPI, 10Y, DXY)
+    finnhub_api_key   : Finnhub API key — news, earnings, economic calendar
     """
     from core.mcp_tools.dhan_tools import DhanTools
     from core.mcp_tools.data_tools  import DataTools
@@ -328,6 +372,8 @@ def create_mcp_tools(
     data_tools     = DataTools(
         alpha_vantage_key=alpha_vantage_key,
         nse_session_cookie=nse_session_cookie,
+        fred_api_key=fred_api_key,
+        finnhub_api_key=finnhub_api_key,
     )
     portfolio_state = PortfolioState(starting_capital=starting_capital)
 

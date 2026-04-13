@@ -19,6 +19,11 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
+# ── External Data API Keys ────────────────────────────────────────────────
+ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY", "")   # FOREX + commodities
+FRED_API_KEY      = os.getenv("FRED_API_KEY", "")         # Federal Reserve macro data
+FINNHUB_API_KEY   = os.getenv("FINNHUB_API_KEY", "")      # Real-time news + earnings
+
 # ── LLM Models ────────────────────────────────────────────────────────────
 LLM_MAIN = "claude-sonnet-4-6"       # All tiers: analysts, debate, PM, calibration
 LLM_FAST = "claude-haiku-4-5-20251001"  # High-throughput NLP (entity extraction)
