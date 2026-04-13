@@ -74,20 +74,14 @@ async def _build_components() -> dict:
     """
     log.info("⚙  Initialising components …")
 
-    # ── Layer 0a: Weight Calibration + Regime Detector ────────────────────
-    from core.calibration.weight_calibration_agent import WeightCalibrationAgent
-    from core.calibration.regime_detector import RegimeDetector
-
-    calibration_agent = WeightCalibrationAgent()
-    regime_detector = RegimeDetector()
-    log.info("  ✓ Layer 0a WeightCalibrationAgent + RegimeDetector")
-
     # ── Layer 0b: Shared Claude async client ─────────────────────────────
+    # Must be created first — WeightCalibrationAgent depends on it.
     import anthropic
     claude_client = anthropic.AsyncAnthropic(api_key=cfg.CLAUDE_API_KEY)
     log.info("  ✓ Layer 0b AsyncAnthropic client (claude-sonnet-4-6)")
 
     # ── Layer 0c: MCP Tools (Dhan + Data + Compute) ──────────────────────
+    # Must be created before WeightCalibrationAgent (market_data_tools dep).
     import dhanhq
     from core.mcp_tools.tool_registry import create_mcp_tools
 
@@ -104,6 +98,19 @@ async def _build_components() -> dict:
         finnhub_api_key=os.getenv("FINNHUB_API_KEY", ""),
     )
     log.info("  ✓ Layer 0c MCPTools (DhanTools + DataTools + ComputeTools)")
+
+    # ── Layer 0a: Weight Calibration + Regime Detector ────────────────────
+    # Placed after 0b/0c because WeightCalibrationAgent requires both
+    # claude_client and mcp_tools at construction time.
+    from core.calibration.weight_calibration_agent import WeightCalibrationAgent
+    from core.calibration.regime_detector import RegimeDetector
+
+    calibration_agent = WeightCalibrationAgent(
+        claude_client=claude_client,
+        market_data_tools=mcp_tools,
+    )
+    regime_detector = RegimeDetector()
+    log.info("  ✓ Layer 0a WeightCalibrationAgent + RegimeDetector")
 
     # ── Layer 1: Tier-1 Analysts ──────────────────────────────────────────
     from core.agents.analysts import (
@@ -136,16 +143,16 @@ async def _build_components() -> dict:
     )
 
     strategy_agents = [
-        ScalperAgent(calibration_agent),
-        TrendFollowerAgent(calibration_agent),
-        MeanReversionAgent(calibration_agent),
-        SentimentAgent(calibration_agent),
-        FundamentalsAgent(calibration_agent),
-        MacroAgent(calibration_agent),
-        OptionsAgent(calibration_agent),
-        PatternAgent(calibration_agent),
-        QuantAgent(calibration_agent),
-        ETFAgent(calibration_agent),
+        ScalperAgent(calibration_agent, mcp_tools),
+        TrendFollowerAgent(calibration_agent, mcp_tools),
+        MeanReversionAgent(calibration_agent, mcp_tools),
+        SentimentAgent(calibration_agent, mcp_tools),
+        FundamentalsAgent(calibration_agent, mcp_tools),
+        MacroAgent(calibration_agent, mcp_tools),
+        OptionsAgent(calibration_agent, mcp_tools),
+        PatternAgent(calibration_agent, mcp_tools),
+        QuantAgent(calibration_agent, mcp_tools),
+        ETFAgent(calibration_agent, mcp_tools),
     ]
     log.info("  ✓ Layer 2  10 Strategy Sub-Agents")
 
