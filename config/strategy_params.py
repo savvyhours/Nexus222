@@ -91,3 +91,44 @@ SENTIMENT_SELL_THRESHOLD = -0.6
 SENTIMENT_HOLD_HOURS = 2
 SENTIMENT_SWING_THRESHOLD = 0.4
 SENTIMENT_SWING_MINUTES = 30
+
+# ── Aggregate dict (imported by config/__init__.py) ───────────────────────
+STRATEGY_PARAMS = {
+    "signal_weights":    DEFAULT_SIGNAL_WEIGHTS,
+    "signal_threshold":  DEFAULT_SIGNAL_THRESHOLD,
+    "agent_weights":     DEFAULT_AGENT_WEIGHTS,
+    "risk_thresholds":   DEFAULT_RISK_THRESHOLDS,
+    "sl_tp_multipliers": DEFAULT_SL_TP,
+    "position_sizing":   DEFAULT_POSITION_SIZING,
+    "scalper": {
+        "max_hold_minutes":       SCALPER_MAX_HOLD_MINUTES,
+        "rsi_period":             SCALPER_RSI_PERIOD,
+        "ema_fast":               SCALPER_EMA_FAST,
+        "ema_slow":               SCALPER_EMA_SLOW,
+        "volume_spike_multiplier": SCALPER_VOLUME_SPIKE_MULTIPLIER,
+    },
+    "trend_follower": {
+        "ema_short":       TREND_EMA_SHORT,
+        "ema_long":        TREND_EMA_LONG,
+        "adx_min":         TREND_ADX_MIN,
+        "high_lookback":   TREND_52W_HIGH_LOOKBACK,
+    },
+    "options": {
+        "iv_crush_percentile": OPTIONS_IV_CRUSH_PERCENTILE,
+        "min_oi":              OPTIONS_MIN_OI,
+        "vix_hedge_trigger":   OPTIONS_VIX_HEDGE_TRIGGER,
+        "delta_neutral_max":   OPTIONS_DELTA_NEUTRAL_MAX,
+    },
+    "mean_reversion": {
+        "zscore_threshold": MEAN_REV_ZSCORE_THRESHOLD,
+        "bb_period":        MEAN_REV_BB_PERIOD,
+        "bb_std":           MEAN_REV_BB_STD,
+    },
+    "sentiment": {
+        "buy_threshold":    SENTIMENT_BUY_THRESHOLD,
+        "sell_threshold":   SENTIMENT_SELL_THRESHOLD,
+        "hold_hours":       SENTIMENT_HOLD_HOURS,
+        "swing_threshold":  SENTIMENT_SWING_THRESHOLD,
+        "swing_minutes":    SENTIMENT_SWING_MINUTES,
+    },
+}

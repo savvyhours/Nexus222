@@ -182,6 +182,46 @@ def _enforce_agent_weights(cal: dict) -> dict:
     return cal
 
 
+class SafetyBounds:
+    """
+    Object-oriented wrapper around the module-level safety-bound functions.
+    Used by tests and any caller that prefers an instance-based API.
+    """
+
+    def apply_signal_weights(self, raw: dict) -> dict:
+        """Clamp negatives to 0, then normalise so weights sum to 1.0."""
+        cal = {"signal_weights": dict(raw)}
+        cal = _enforce_signal_weights(cal)
+        return cal["signal_weights"]
+
+    def apply_agent_weights(self, raw: dict) -> dict:
+        """Clamp each weight to [0, MAX_SINGLE_AGENT_WEIGHT], then normalise."""
+        cal = {"agent_weights": dict(raw)}
+        cal = _enforce_agent_weights(cal)
+        return cal["agent_weights"]
+
+    def apply_risk_thresholds(self, raw: dict) -> dict:
+        """
+        Clamp signal_threshold to [MIN_SIGNAL_THRESHOLD, MAX_SIGNAL_THRESHOLD]
+        and validate VIX ordering.
+        """
+        result = dict(raw)
+        if "signal_threshold" in result:
+            result["signal_threshold"] = _clamp(
+                result["signal_threshold"],
+                MIN_SIGNAL_THRESHOLD,
+                MAX_SIGNAL_THRESHOLD,
+                "signal_threshold",
+            )
+        return result
+
+    def apply_position_sizing(self, raw: dict) -> dict:
+        """Clamp position sizing fields to hard limits."""
+        cal = {"position_sizing": dict(raw)}
+        cal = _enforce_position_sizing(cal)
+        return cal["position_sizing"]
+
+
 def _enforce_signal_weights(cal: dict) -> dict:
     sw = cal.get("signal_weights", {})
     if not sw:
