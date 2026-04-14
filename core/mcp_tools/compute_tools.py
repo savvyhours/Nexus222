@@ -1,7 +1,7 @@
 """
 NEXUS-II — Technical Indicator Compute Tools
 
-Pure-Python / pandas-ta implementations of every indicator needed by the
+Pure-pandas implementations of every indicator needed by the
 TechnicalAnalyst, ScalperAgent, TrendFollowerAgent, MeanReversionAgent, and
 PatternAgent.
 
@@ -10,8 +10,8 @@ All functions accept a pandas DataFrame with columns:
 
 and return a dict of indicator values (latest bar unless noted).
 
-Depends on: pandas, pandas-ta
-Optional:   numpy (for Z-score / pairs stat arb calculations)
+Depends on: pandas, numpy
+No external TA library required — all indicators are implemented inline.
 
 No network I/O — these are pure compute functions, fully synchronous.
 """
@@ -58,10 +58,15 @@ def ohlcv_to_df(bars: list[dict]) -> pd.DataFrame:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_rsi(df: pd.DataFrame, period: int = 14) -> float:
-    """RSI(period) of the close series. Returns latest value."""
+    """RSI(period) of the close series using Wilder's smoothing. Returns latest value."""
     try:
-        import pandas_ta as ta
-        rsi = ta.rsi(df["close"], length=period)
+        delta = df["close"].diff()
+        gain = delta.clip(lower=0)
+        loss = (-delta).clip(lower=0)
+        avg_gain = gain.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+        rs = avg_gain / avg_loss.replace(0, float("nan"))
+        rsi = 100 - (100 / (1 + rs))
         return _safe_last(rsi, 50.0)
     except Exception as exc:
         log.debug("compute_rsi failed: %s", exc)
@@ -82,15 +87,16 @@ def compute_macd(
     dict with keys: macd_line, macd_signal, macd_hist
     """
     try:
-        import pandas_ta as ta
-        result = ta.macd(df["close"], fast=fast, slow=slow, signal=signal)
-        if result is None or result.empty:
-            return {"macd_line": 0.0, "macd_signal": 0.0, "macd_hist": 0.0}
-        cols = result.columns.tolist()
+        close = df["close"]
+        ema_fast = close.ewm(span=fast, adjust=False).mean()
+        ema_slow = close.ewm(span=slow, adjust=False).mean()
+        macd_line = ema_fast - ema_slow
+        signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+        hist = macd_line - signal_line
         return {
-            "macd_line":   _safe_last(result[cols[0]]),
-            "macd_hist":   _safe_last(result[cols[1]]),
-            "macd_signal": _safe_last(result[cols[2]]),
+            "macd_line":   _safe_last(macd_line),
+            "macd_signal": _safe_last(signal_line),
+            "macd_hist":   _safe_last(hist),
         }
     except Exception as exc:
         log.debug("compute_macd failed: %s", exc)
@@ -104,8 +110,7 @@ def compute_macd(
 def compute_ema(df: pd.DataFrame, period: int) -> float:
     """EMA(period) of close. Returns latest value."""
     try:
-        import pandas_ta as ta
-        ema = ta.ema(df["close"], length=period)
+        ema = df["close"].ewm(span=period, adjust=False).mean()
         return _safe_last(ema)
     except Exception as exc:
         log.debug("compute_ema(%d) failed: %s", period, exc)
@@ -132,15 +137,26 @@ def compute_adx(df: pd.DataFrame, period: int = 14) -> dict[str, float]:
     ADX > 25 = trend confirmed; < 20 = range-bound.
     """
     try:
-        import pandas_ta as ta
-        result = ta.adx(df["high"], df["low"], df["close"], length=period)
-        if result is None or result.empty:
-            return {"adx": 20.0, "plus_di": 0.0, "minus_di": 0.0}
-        cols = result.columns.tolist()
+        high, low, close = df["high"], df["low"], df["close"]
+        tr = pd.concat([
+            high - low,
+            (high - close.shift()).abs(),
+            (low - close.shift()).abs(),
+        ], axis=1).max(axis=1)
+        plus_dm = high.diff()
+        minus_dm = -low.diff()
+        plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0.0)
+        minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0.0)
+        alpha = 1 / period
+        atr14 = tr.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
+        plus_di = 100 * plus_dm.ewm(alpha=alpha, min_periods=period, adjust=False).mean() / atr14
+        minus_di = 100 * minus_dm.ewm(alpha=alpha, min_periods=period, adjust=False).mean() / atr14
+        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, float("nan"))
+        adx = dx.ewm(alpha=alpha, min_periods=period, adjust=False).mean()
         return {
-            "adx":      _safe_last(result[cols[0]], 20.0),
-            "plus_di":  _safe_last(result[cols[1]]),
-            "minus_di": _safe_last(result[cols[2]]),
+            "adx":      _safe_last(adx, 20.0),
+            "plus_di":  _safe_last(plus_di),
+            "minus_di": _safe_last(minus_di),
         }
     except Exception as exc:
         log.debug("compute_adx failed: %s", exc)
@@ -199,10 +215,16 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> dict[str, float]:
     Returns: atr (latest), atr_avg_20.
     """
     try:
-        import pandas_ta as ta
-        atr_series = ta.atr(df["high"], df["low"], df["close"], length=period)
-        atr_val    = _safe_last(atr_series)
-        atr_avg20  = float(atr_series.tail(20).mean()) if atr_series is not None else atr_val
+        high, low, close = df["high"], df["low"], df["close"]
+        tr = pd.concat([
+            high - low,
+            (high - close.shift()).abs(),
+            (low - close.shift()).abs(),
+        ], axis=1).max(axis=1)
+        atr_series = tr.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+        atr_val   = _safe_last(atr_series)
+        clean = atr_series.dropna()
+        atr_avg20 = float(clean.tail(20).mean()) if not clean.empty else atr_val
         return {"atr": atr_val, "atr_avg_20": atr_avg20}
     except Exception as exc:
         log.debug("compute_atr failed: %s", exc)
@@ -218,21 +240,20 @@ def compute_bollinger(
     width = (upper - lower) / mid — smaller width = squeeze (volatility contraction).
     """
     try:
-        import pandas_ta as ta
-        result = ta.bbands(df["close"], length=period, std=std)
-        if result is None or result.empty:
-            close = _safe_last(df["close"])
-            return {"bb_upper": close, "bb_mid": close, "bb_lower": close, "bb_width": 0.0}
-        cols = result.columns.tolist()
-        lower  = _safe_last(result[cols[0]])
-        mid    = _safe_last(result[cols[1]])
-        upper  = _safe_last(result[cols[2]])
-        width  = (upper - lower) / mid if mid != 0 else 0.0
-        return {"bb_lower": lower, "bb_mid": mid, "bb_upper": upper, "bb_width": round(width, 4)}
+        close = df["close"]
+        mid_series   = close.rolling(period).mean()
+        sigma_series = close.rolling(period).std()
+        upper_series = mid_series + std * sigma_series
+        lower_series = mid_series - std * sigma_series
+        mid_val   = _safe_last(mid_series)
+        upper_val = _safe_last(upper_series)
+        lower_val = _safe_last(lower_series)
+        width = (upper_val - lower_val) / mid_val if mid_val != 0 else 0.0
+        return {"bb_lower": lower_val, "bb_mid": mid_val, "bb_upper": upper_val, "bb_width": round(width, 4)}
     except Exception as exc:
         log.debug("compute_bollinger failed: %s", exc)
-        close = _safe_last(df["close"])
-        return {"bb_upper": close, "bb_mid": close, "bb_lower": close, "bb_width": 0.0}
+        close_val = _safe_last(df["close"])
+        return {"bb_upper": close_val, "bb_mid": close_val, "bb_lower": close_val, "bb_width": 0.0}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -242,8 +263,8 @@ def compute_bollinger(
 def compute_obv(df: pd.DataFrame) -> float:
     """On-Balance Volume (latest value)."""
     try:
-        import pandas_ta as ta
-        obv = ta.obv(df["close"], df["volume"])
+        direction = df["close"].diff().apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+        obv = (df["volume"] * direction).cumsum()
         return _safe_last(obv)
     except Exception as exc:
         log.debug("compute_obv failed: %s", exc)

@@ -43,7 +43,7 @@ zoneinfo; python_version < "3.9"
 
 # Technical indicators
 ta-lib>=0.4.28
-pandas-ta @ git+https://github.com/twopirllc/pandas-ta.git@development  # No PyPI release for Python 3.11+
+# pandas-ta removed — repo deleted upstream; indicators reimplemented inline in compute_tools.py
 
 # Monitoring
 prometheus-client>=0.20.0
