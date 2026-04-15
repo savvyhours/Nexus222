@@ -330,7 +330,7 @@ class WeightCalibrationAgent:
 
         # Fast path: cache hit (no lock needed for read)
         if self._cache is not None:
-            ttl = self._ttl_market if self._is_market_hours() else self._ttl_off
+            ttl = getattr(self, '_ttl_market', CALIBRATION_TTL_MARKET_HOURS) if self._is_market_hours() else getattr(self, '_ttl_off', CALIBRATION_TTL_OFF_HOURS)
             age = now - self._cache.cached_at
             if age < ttl:
                 log.debug(
@@ -343,7 +343,7 @@ class WeightCalibrationAgent:
         async with self._lock:
             # Double-check after acquiring lock (another coroutine may have refreshed)
             if self._cache is not None:
-                ttl = self._ttl_market if self._is_market_hours() else self._ttl_off
+                ttl = getattr(self, '_ttl_market', CALIBRATION_TTL_MARKET_HOURS) if self._is_market_hours() else getattr(self, '_ttl_off', CALIBRATION_TTL_OFF_HOURS)
                 if (now - self._cache.cached_at) < ttl:
                     return self._cache
 
