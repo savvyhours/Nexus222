@@ -73,7 +73,7 @@ def hammer(bars: list[dict]) -> PatternResult:
     high_wick = h - max(o, c)
     if body < 1e-9:
         return PatternResult.miss(name)
-    detected = (low_wick >= 2.0 * body) and (high_wick <= 0.3 * body)
+    detected = (low_wick >= 2.0 * body) and (high_wick <= body)
     strength = round(min(1.0, low_wick / body / 3), 3) if detected else 0.0
     return PatternResult(name=name, detected=detected, strength=strength, bullish=True)
 

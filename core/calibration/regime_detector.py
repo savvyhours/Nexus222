@@ -82,7 +82,22 @@ class RegimeDetector:
     to pick the dominant regime and note the conflict.
     """
 
-    def detect(
+    async def detect(self, snapshot: dict) -> str:
+        """
+        Async interface for tests and external callers.
+        Accepts a dict snapshot with keys: vix, adx, atr_pct, bb_width_pct,
+        trend_slope, volume_ratio, advance_decline_ratio.
+        Returns the regime string (e.g. "CRISIS", "TRENDING").
+        """
+        result = self._detect_sync(
+            india_vix=snapshot.get("vix", 16.0),
+            adx=snapshot.get("adx", 20.0),
+            advance_decline_ratio=snapshot.get("advance_decline_ratio", 1.0),
+            nifty_change_pct=snapshot.get("trend_slope", 0.0),
+        )
+        return result.regime.value
+
+    def _detect_sync(
         self,
         india_vix: float,
         adx: float,
@@ -208,7 +223,7 @@ class RegimeDetector:
         Convenience wrapper that accepts the market_state dict gathered by
         WeightCalibrationAgent._gather_market_state().
         """
-        return self.detect(
+        return self._detect_sync(
             india_vix=market_state.get("india_vix", 16.0),
             adx=market_state.get("adx", 20.0),
             advance_decline_ratio=market_state.get("market_breadth", 1.0),

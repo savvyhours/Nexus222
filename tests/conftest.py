@@ -21,5 +21,7 @@ def event_loop():
     Avoids 'event loop is closed' errors with asyncio.get_event_loop() in tests.
     """
     loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
+    asyncio.set_event_loop(None)

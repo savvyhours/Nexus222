@@ -140,7 +140,7 @@ class BaseAgent(ABC):
     def __init__(
         self,
         calibration_agent: "WeightCalibrationAgent",
-        mcp_tools: Any,
+        mcp_tools: Any = None,
         *,
         name: Optional[str] = None,
     ) -> None:

@@ -11,7 +11,7 @@ Flow:
         → calibration_agent.get_<param>()
             → _get_calibration()   (checks TTL cache)
                 → _gather_market_state()
-                → _call_llm(market_state)   [on cache miss]
+                → _call_claude(market_state)   [on cache miss]
                 → safety_bounds.enforce(raw)
                 → cache result
             ← CalibrationResult
@@ -275,6 +275,42 @@ class WeightCalibrationAgent:
         """Returns True if the LLM determined a CRISIS regime (VIX > 28)."""
         return (await self._get_calibration()).kill_switch
 
+    async def kill_switch_active(self) -> bool:
+        """Alias for is_kill_switch_active()."""
+        return await self.is_kill_switch_active()
+
+    async def calibrate(self) -> dict:
+        """Refresh calibration via _call_claude and return raw dict. Caches result."""
+        async with self._lock:
+            now = time.monotonic()
+            if self._cache is not None:
+                ttl = (
+                    getattr(self, '_ttl_market', CALIBRATION_TTL_MARKET_HOURS)
+                    if self._is_market_hours()
+                    else getattr(self, '_ttl_off', CALIBRATION_TTL_OFF_HOURS)
+                )
+                age = now - self._cache.cached_at
+                if age < ttl:
+                    return self._cache.raw
+
+            raw_json = await self._call_claude({})
+            raw = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+            raw = safety_bounds.enforce(raw)
+
+            regime_str = raw.get("regime", raw.get("market_regime", "UNKNOWN"))
+            try:
+                regime = Regime(regime_str)
+            except ValueError:
+                regime = Regime.UNKNOWN
+
+            self._cache = CalibrationResult(
+                raw=raw,
+                regime=regime,
+                cached_at=time.monotonic(),
+                reasoning=raw.get("reasoning", ""),
+            )
+            return raw
+
     async def get_current_regime(self) -> Regime:
         """Returns the current market regime label."""
         return (await self._get_calibration()).regime
@@ -318,7 +354,7 @@ class WeightCalibrationAgent:
         """Gather market state, call LLM, enforce safety bounds, cache result."""
         try:
             market_state = await self._gather_market_state()
-            raw = await self._call_llm(market_state)
+            raw = await self._call_claude(market_state)
             raw = safety_bounds.enforce(raw)
 
             regime_str = raw.get("market_regime", "UNKNOWN")
@@ -353,7 +389,7 @@ class WeightCalibrationAgent:
 
     # ── LLM call ──────────────────────────────────────────────────────────
 
-    async def _call_llm(self, market_state: dict) -> dict:
+    async def _call_claude(self, market_state: dict) -> dict:
         """Call Claude Sonnet with the market state and return parsed JSON."""
         prompt = self._build_prompt(market_state)
 
@@ -431,7 +467,7 @@ class WeightCalibrationAgent:
         agent_sharpe_30d    = self._safe_sync(self._tools.get_agent_sharpe_scores, {}, "agent_sharpe_30d")
 
         # Run local regime detection (no LLM, no network)
-        regime_result: RegimeResult = self._regime_detector.detect(
+        regime_result: RegimeResult = self._regime_detector._detect_sync(
             india_vix=india_vix,
             adx=market_breadth if isinstance(market_breadth, float) else 20.0,
             advance_decline_ratio=market_breadth if isinstance(market_breadth, float) else 1.0,

@@ -157,6 +157,11 @@ def _enforce_position_sizing(cal: dict) -> dict:
         "low_conviction_pct",
     )
 
+    if "max_position_pct" in ps:
+        ps["max_position_pct"] = _clamp(
+            ps["max_position_pct"], 0.001, MAX_POSITION_PCT, "max_position_pct"
+        )
+
     cal["position_sizing"] = ps
     return cal
 

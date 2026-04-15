@@ -20,7 +20,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 from zoneinfo import ZoneInfo
 
 import anthropic
@@ -83,7 +83,7 @@ class MasterOrchestrator:
         self,
         agents: list[BaseAgent],
         calibration_agent: "WeightCalibrationAgent",
-        claude_client: anthropic.AsyncAnthropic,
+        claude_client: Optional[anthropic.AsyncAnthropic] = None,
     ) -> None:
         self._agents = {a.AGENT_KEY: a for a in agents}
         self._calibration = calibration_agent
@@ -103,7 +103,7 @@ class MasterOrchestrator:
         Returns list of ConsensusSignals that exceeded the signal threshold.
         """
         # Kill switch check
-        if await self._calibration.is_kill_switch_active():
+        if await self._calibration.kill_switch_active():
             log.warning("MasterOrchestrator: kill switch active — no new signals")
             return []
 
