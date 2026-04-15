@@ -60,9 +60,9 @@ class AgentSignal:
     timestamp       : IST timestamp of signal generation
     metadata        : optional extra data (e.g. greeks for options signals)
     """
-    symbol:            str
-    action:            Action
-    strength:          float           # 0.0–1.0
+    symbol:            str   = ""
+    action:            Action = Action.HOLD
+    strength:          float  = 0.0    # 0.0–1.0
     entry:             float = 0.0
     stop_loss:         float = 0.0
     target:            float = 0.0
