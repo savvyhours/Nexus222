@@ -1,0 +1,38 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NEXUS-II v2.1 — Docker Compose for local / Docker Desktop deployment
+#
+# Usage:
+#   docker compose up --build -d      # first run (builds image, starts in background)
+#   docker compose up -d              # subsequent runs (uses cached image)
+#   docker compose logs -f            # watch live logs
+#   docker compose down               # stop and remove container
+#   docker compose restart nexus-bot  # restart the bot
+#
+# Environment variables are loaded from .env (already filled in your project).
+# NEVER commit .env to git.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  nexus-bot:
+    container_name: nexus-ii-bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env                    # loads all your secrets automatically
+    restart: on-failure         # auto-restart if bot crashes (max 5 times)
+    volumes:
+      - ./logs:/app/logs        # persist logs on your machine even after restart
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"         # rotate logs at 50 MB
+        max-file: "5"           # keep 5 rotated log files
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s        # give bot 2 min to start before health checks begin
